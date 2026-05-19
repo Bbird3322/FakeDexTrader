@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pumpty ONNX Live Candles</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1215'/%3E%3Cpath d='M14 39 25 28l9 8 16-18' fill='none' stroke='%2326a69a' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='48' cy='18' r='5' fill='%23f2c94c'/%3E%3C/svg%3E">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.all.min.js"></script>
   <style>
     :root {
@@ -208,8 +209,9 @@
 </main>
 
 <script>
-const MODEL_PATH = './meme_ai_quantized_int8.onnx';
-const VOCAB_PATH = './master_vocab.json';
+const ASSET_BASE_URL = new URL('./', location.href);
+const MODEL_PATH = new URL('meme_ai_quantized_int8.onnx', ASSET_BASE_URL).href;
+const VOCAB_PATH = new URL('master_vocab.json', ASSET_BASE_URL).href;
 const SEED_TEXT = '[SCENARIO_NORMAL] BUY_SIZE_1.5SOL_WALLET_DEV_TIME_<0.1s BUY_SIZE_0.1SOL_WALLET_SNIPER_TIME_<0.1s BUY_SIZE_3.2SOL_WALLET_WHALE_TIME_0.1-1s';
 const MODEL_CONTEXT = 512;
 const MAX_VISIBLE_TOKENS = 4096;
@@ -561,15 +563,13 @@ function render() {
 }
 
 async function createSessionGpuFirst() {
+  await ensureAssetOk(MODEL_PATH, 'ONNX model');
+  configureOnnxRuntime();
+
   const attempts = [];
   if (navigator.gpu) attempts.push('webgpu');
   attempts.push('webgl');
   attempts.push('wasm');
-
-  if (ort.env?.wasm) {
-    ort.env.wasm.numThreads = Math.max(1, Math.min(4, navigator.hardwareConcurrency || 1));
-    ort.env.wasm.simd = true;
-  }
 
   const errors = [];
   for (const provider of attempts) {
@@ -587,6 +587,43 @@ async function createSessionGpuFirst() {
   }
 
   throw new Error(`ONNXモデルをロードできませんでした。${errors.join(' / ')}`);
+}
+
+function configureOnnxRuntime() {
+  if (ort.env) {
+    ort.env.logLevel = 'error';
+  }
+
+  if (ort.env?.wasm) {
+    const canUseThreads = window.crossOriginIsolated === true;
+    ort.env.wasm.numThreads = canUseThreads
+      ? Math.max(1, Math.min(4, navigator.hardwareConcurrency || 1))
+      : 1;
+    ort.env.wasm.simd = true;
+  }
+}
+
+async function ensureAssetOk(url, label) {
+  const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+  if (!res.ok) {
+    throw new Error(`${label} が見つかりません (${res.status}): ${url}`);
+  }
+}
+
+async function fetchJsonAsset(url, label) {
+  const res = await fetch(url, { cache: 'no-store' });
+  const text = await res.text();
+
+  if (!res.ok) {
+    throw new Error(`${label} が見つかりません (${res.status}): ${url}`);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    const preview = text.slice(0, 40).replace(/\s+/g, ' ');
+    throw new Error(`${label} がJSONとして読めません。URLがHTMLを返しています: ${url} (${preview}...)`);
+  }
 }
 
 function sampleTopK(logits, topK, temperature) {
@@ -712,7 +749,7 @@ async function load() {
       throw new Error('file:// ではONNXを読み込めません。http://localhost:8000/index.html で開いてください。');
     }
     setStatus('loading vocab');
-    vocab = await fetch(VOCAB_PATH).then((res) => res.json());
+    vocab = await fetchJsonAsset(VOCAB_PATH, 'vocab');
     stoi = new Map(vocab.map((token, index) => [token, index]));
 
     session = await createSessionGpuFirst();
