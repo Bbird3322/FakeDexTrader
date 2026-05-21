@@ -1,779 +1,144 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pumpty ONNX Live Candles</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1215'/%3E%3Cpath d='M14 39 25 28l9 8 16-18' fill='none' stroke='%2326a69a' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='48' cy='18' r='5' fill='%23f2c94c'/%3E%3C/svg%3E">
-  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.all.min.js"></script>
-  <style>
-    :root {
-      --bg: #0f1215;
-      --panel: #171c21;
-      --panel2: #20272e;
-      --line: #313a43;
-      --text: #eef2f4;
-      --muted: #98a4ae;
-      --green: #26a69a;
-      --red: #ef5350;
-      --cyan: #56ccf2;
-      --yellow: #f2c94c;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--bg);
-      color: var(--text);
-      font-family: "Segoe UI", system-ui, sans-serif;
-      letter-spacing: 0;
-    }
-    main {
-      width: min(1480px, 100%);
-      margin: 0 auto;
-      padding: 14px;
-      display: grid;
-      gap: 12px;
-    }
-    .top {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
-      align-items: center;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px 12px;
-    }
-    h1 { margin: 0; font-size: 18px; font-weight: 700; }
-    .status { color: var(--muted); font-size: 12px; margin-top: 2px; }
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      justify-content: flex-end;
-    }
-    button, select, input {
-      height: 36px;
-      border-radius: 6px;
-      border: 1px solid var(--line);
-      background: var(--panel2);
-      color: var(--text);
-      font-size: 13px;
-    }
-    button { padding: 0 12px; cursor: pointer; }
-    button:disabled { cursor: wait; opacity: .55; }
-    button.active { background: #275a55; border-color: var(--green); }
-    select { padding: 0 8px; }
-    input {
-      width: 74px;
-      padding: 0 8px;
-    }
-    label {
-      display: inline-flex;
-      gap: 6px;
-      align-items: center;
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 8px;
-    }
-    .stat {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 9px 10px;
-      min-width: 0;
-    }
-    .stat b {
-      display: block;
-      font-size: 18px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .stat span { color: var(--muted); font-size: 12px; }
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 330px;
-      gap: 12px;
-    }
-    .box {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    .bar {
-      min-height: 40px;
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 0 12px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-    #chart {
-      display: block;
-      width: 100%;
-      height: 620px;
-      background: #11161a;
-    }
-    .side h2 {
-      height: 40px;
-      line-height: 40px;
-      margin: 0;
-      padding: 0 12px;
-      border-bottom: 1px solid var(--line);
-      font-size: 14px;
-    }
-    #tokens {
-      height: 620px;
-      overflow: auto;
-      padding: 8px;
-      display: flex;
-      flex-direction: column-reverse;
-      gap: 6px;
-    }
-    .token {
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: #151a1f;
-      padding: 7px 8px;
-      font-size: 12px;
-      overflow-wrap: anywhere;
-    }
-    .buy { border-color: rgba(38, 166, 154, .55); }
-    .sell { border-color: rgba(239, 83, 80, .55); }
-    .dead { border-color: rgba(239, 83, 80, .75); background: rgba(239, 83, 80, .12); }
-    .realive { border-color: rgba(38, 166, 154, .75); background: rgba(38, 166, 154, .12); }
-    .scenario { border-color: rgba(86, 204, 242, .7); background: rgba(86, 204, 242, .11); }
-    @media (max-width: 980px) {
-      .top, .layout, .stats { grid-template-columns: 1fr; }
-      .controls { justify-content: flex-start; }
-      #chart { height: 460px; }
-      #tokens { height: 280px; }
-    }
-  </style>
-</head>
-<body>
-<main>
-  <section class="top">
-    <div>
-      <h1>Pumpty ONNX Live Candles</h1>
-      <div id="status" class="status">loading</div>
-    </div>
-    <div class="controls">
-      <button id="toggle" disabled>Start</button>
-      <button id="reset" disabled>Reset</button>
-      <select id="timeframe">
-        <option value="60">1分足</option>
-        <option value="900">15分足</option>
-        <option value="3600">時間足</option>
-        <option value="86400">日足</option>
-      </select>
-      <label>temp <input id="temperature" type="number" min="0.1" max="2" step="0.05" value="0.85"></label>
-      <label>topK <input id="topk" type="number" min="1" max="200" step="1" value="50"></label>
-      <label>ms <input id="delay" type="number" min="0" max="3000" step="25" value="120"></label>
-    </div>
-  </section>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meme Coin DEX Simulator</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="logo">MEME DEX</div>
+        <div class="stats-bar">
+          <div class="stat"><span class="label">MASTER TIME</span><span id="master-time-display" class="value">00:00:00</span></div>
+          <div class="stat speed-stat">
+            <span class="label">SPEED</span>
+            <select id="speed-select" class="speed-select">
+              <option value="1">1x</option>
+              <option value="2">2x</option>
+              <option value="5">5x</option>
+              <option value="10">10x</option>
+              <option value="60">60x</option>
+            </select>
+          </div>
+          <div class="stat"><span class="label">TPS</span><span id="tps-display" class="value">0.00</span></div>
+          <div class="stat"><span class="label">ACTIVE INAGOS</span><span id="inago-display" class="value">0</span></div>
+        </div>
+      </header>
 
-  <section class="stats">
-    <div class="stat"><b id="sGenerated">0</b><span>generated tokens</span></div>
-    <div class="stat"><b id="sTrades">0</b><span>txns</span></div>
-    <div class="stat"><b id="sCandles">0</b><span>candles</span></div>
-    <div class="stat"><b id="sPrice">100.00</b><span>price</span></div>
-    <div class="stat"><b id="sLast">-</b><span>last txn</span></div>
-    <div class="stat"><b id="sModel">-</b><span>model</span></div>
-  </section>
+      <main class="layout">
+        <!-- Left Sidebar: Coin List -->
+        <aside class="sidebar left-sidebar box">
+          <header class="sidebar-header">
+            <h2>MARKETS</h2>
+          </header>
+          <div id="coin-list" class="coin-list">
+            <!-- Coin list items will be generated here -->
+          </div>
+        </aside>
 
-  <section class="layout">
-    <section class="box">
-      <div class="bar">
-        <span>left: older / right: newer</span>
-        <span>green: BUY txn / red: SELL txn / vertical marker: special token</span>
+        <!-- Center Column: Chart & Transactions -->
+        <section class="center-column">
+          <!-- Top: Chart -->
+          <div class="main-chart-area box">
+            <header class="chart-header">
+              <h1 id="selected-coin-name">---</h1>
+              <div class="coin-price-info">
+                <span id="selected-coin-price" class="price">$0.00</span>
+                <span id="selected-coin-change" class="change">0.00%</span>
+              </div>
+            </header>
+            <div id="chart-container"></div>
+          </div>
+          
+          <!-- Bottom: Transactions -->
+          <div class="txn-area box">
+            <header class="txn-header">
+              <div class="txn-tabs">
+                <button id="txn-tab-all" class="txn-tab active">All</button>
+                <button id="txn-tab-you" class="txn-tab">You</button>
+                <button id="txn-tab-dev" class="txn-tab">Dev</button>
+              </div>
+            </header>
+            <div class="txn-table-container">
+              <table class="txn-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>USD</th>
+                    <th id="txn-header-token">Token</th>
+                    <th>SOL</th>
+                    <th>Price</th>
+                  </tr>
+                </thead>
+                <tbody id="txn-list">
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right Sidebar: Trading Panel -->
+        <aside class="sidebar right-sidebar box">
+          <header class="sidebar-header">
+            <div class="trade-tabs">
+              <button class="trade-tab active">Market</button>
+              <button class="trade-tab">Limit</button>
+            </div>
+          </header>
+          <div class="trade-panel">
+            <div class="trade-action-toggle">
+              <button id="btn-buy" class="btn-buy active">Buy</button>
+              <button id="btn-sell" class="btn-sell">Sell</button>
+            </div>
+            
+            <div class="input-group">
+              <label>Pay</label>
+              <div class="input-box">
+                <input id="trade-pay-input" type="number" placeholder="0.00" value="1.0">
+                <span class="currency">SOL</span>
+              </div>
+            </div>
+            
+            <div class="input-group">
+              <label>Receive</label>
+              <div class="input-box">
+                <input id="trade-receive-input" type="text" placeholder="0" readonly>
+                <span class="currency" id="trade-receive-currency">---</span>
+              </div>
+            </div>
+            
+            <button id="btn-trade" class="btn-submit">Trade</button>
+          </div>
+          
+          <div class="token-info">
+            <h3>Token Info</h3>
+            <div class="info-grid">
+              <div class="info-item"><span class="label">Liquidity</span><span class="value" id="token-liquidity">$0.00</span></div>
+              <div class="info-item"><span class="label">MCap</span><span class="value" id="token-mcap">$0.00</span></div>
+            </div>
+          </div>
+        </aside>
+      </main>
+      
+      <!-- Effect Overlay for Whale / Microburst -->
+      <div id="effect-overlay" class="effect-overlay"></div>
+
+      <!-- Initial Loading Screen -->
+      <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+          <div class="logo">MEME DEX</div>
+          <div class="loading-title">INITIALIZING WORLD STATE</div>
+          <div class="progress-container">
+            <div id="progress-bar-fill" class="progress-bar-fill"></div>
+          </div>
+          <div id="loading-status" class="loading-status">Loading AI Model...</div>
+          <div id="loading-sub-status" class="loading-sub-status"></div>
+        </div>
       </div>
-      <canvas id="chart"></canvas>
-    </section>
-    <aside class="box side">
-      <h2>Txn Stream</h2>
-      <div id="tokens"></div>
-    </aside>
-  </section>
-</main>
-
-<script>
-const ASSET_BASE_URL = new URL('./', location.href);
-const MODEL_PATH = new URL('meme_ai_quantized_int8.onnx', ASSET_BASE_URL).href;
-const VOCAB_PATH = new URL('master_vocab.json', ASSET_BASE_URL).href;
-const SEED_TEXT = '[SCENARIO_NORMAL] BUY_SIZE_1.5SOL_WALLET_DEV_TIME_<0.1s BUY_SIZE_0.1SOL_WALLET_SNIPER_TIME_<0.1s BUY_SIZE_3.2SOL_WALLET_WHALE_TIME_0.1-1s';
-const MODEL_CONTEXT = 512;
-const MAX_VISIBLE_TOKENS = 4096;
-const TOKEN_LOG_LIMIT = 160;
-const START_SECONDS = Date.UTC(2026, 0, 1) / 1000;
-const MAX_MICRO_TXNS_PER_MINUTE = 24;
-const DELTAS = [
-  ['TIME_<0.1s', .05],
-  ['TIME_0.1-1s', .5],
-  ['TIME_1-10s', 5.5],
-  ['TIME_10-60s', 35],
-  ['TIME_1-10m', 330],
-  ['TIME_10-60m', 2100],
-  ['TIME_1-24h', 45000],
-  ['TIME_>1day', 86401],
-];
-
-let session = null;
-let vocab = [];
-let stoi = new Map();
-let ids = [];
-let tokens = [];
-let txns = [];
-let running = false;
-let generated = 0;
-let loopTimer = null;
-let lastModel = null;
-let masterTime = START_SECONDS;
-let microBurstWindowStart = START_SECONDS;
-let microBurstCount = 0;
-let activeExecutionProvider = '-';
-
-const $ = (id) => document.getElementById(id);
-const canvas = $('chart');
-const ctx = canvas.getContext('2d');
-
-function setStatus(message) {
-  $('status').textContent = message;
-}
-
-function format(value, digits = 2) {
-  return Number(value).toLocaleString(undefined, { maximumFractionDigits: digits });
-}
-
-function randomBetween(min, max) {
-  return Math.random() * (max - min) + min;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-function tokenClass(token) {
-  if (token === '[DEAD]') return 'dead';
-  if (token === '[REALIVE]') return 'realive';
-  if (token.startsWith('[SCENARIO_')) return 'scenario';
-  if (token.startsWith('BUY_')) return 'buy';
-  if (token.startsWith('SELL_')) return 'sell';
-  return '';
-}
-
-function deltaSeconds(token) {
-  if (token.includes('TIME_<0.1s')) return randomBetween(0.01, 0.09);
-  if (token.includes('TIME_0.1-1s')) return randomBetween(0.1, 0.99);
-  if (token.includes('TIME_1-10s')) return randomBetween(1, 9.9);
-  if (token.includes('TIME_10-60s')) return randomBetween(10, 59.9);
-  if (token.includes('TIME_1-10m')) return randomBetween(60, 599.9);
-  if (token.includes('TIME_10-60m')) return randomBetween(600, 3599.9);
-  if (token.includes('TIME_1-24h')) return randomBetween(3600, 86399);
-  if (token.includes('TIME_>1day')) return randomBetween(86400, 172800);
-  return 0;
-}
-
-function tradeSize(token) {
-  if (token.includes('SIZE_<0.1')) return randomBetween(0.01, 0.09);
-  const match = token.match(/SIZE_([0-9]+(?:\.[0-9]+)?)SOL/);
-  if (!match) return 0;
-  const center = Number(match[1]);
-  return randomBetween(Math.max(0.01, center - 0.05), center + 0.04);
-}
-
-function walletMultiplier(token) {
-  if (token.includes('WALLET_WHALE')) return 1.45;
-  if (token.includes('WALLET_SNIPER')) return 1.25;
-  if (token.includes('WALLET_DEV')) return 1.15;
-  return 1;
-}
-
-function isTrade(token) {
-  return token.startsWith('BUY_') || token.startsWith('SELL_');
-}
-
-function isSpecial(token) {
-  return token === '[DEAD]' || token === '[REALIVE]' || token.startsWith('[SCENARIO_');
-}
-
-function applyMicroTxnLimit(token, rawDelay) {
-  if (!token.includes('TIME_<0.1s')) {
-    microBurstCount = 0;
-    microBurstWindowStart = masterTime;
-    return rawDelay;
-  }
-
-  let scheduledAt = masterTime + rawDelay;
-  if (microBurstCount === 0 || scheduledAt - microBurstWindowStart >= 60) {
-    microBurstWindowStart = scheduledAt;
-    microBurstCount = 1;
-    return rawDelay;
-  }
-
-  if (microBurstCount >= MAX_MICRO_TXNS_PER_MINUTE) {
-    const extraDelay = 60 - (scheduledAt - microBurstWindowStart);
-    scheduledAt += Math.max(0, extraDelay);
-    microBurstWindowStart = scheduledAt;
-    microBurstCount = 1;
-    return scheduledAt - masterTime;
-  }
-
-  microBurstCount++;
-  return rawDelay;
-}
-
-function tokenToTxn(token, sourceIndex) {
-  if (isSpecial(token)) {
-    return {
-      kind: 'marker',
-      token,
-      sourceIndex,
-      scheduledAt: masterTime,
-    };
-  }
-
-  if (!isTrade(token)) return null;
-
-  const rawDelay = deltaSeconds(token);
-  const delaySec = applyMicroTxnLimit(token, rawDelay);
-  masterTime += delaySec;
-
-  return {
-    kind: 'trade',
-    action: token.startsWith('BUY_') ? 'BUY' : 'SELL',
-    sizeSol: tradeSize(token),
-    delaySec,
-    scheduledAt: masterTime,
-    sourceToken: token,
-    sourceIndex,
-  };
-}
-
-function resetState() {
-  ids = SEED_TEXT.split(/\s+/).map((token) => stoi.get(token) ?? stoi.get('<UNK>') ?? 0);
-  tokens = ids.map((id) => vocab[id] ?? '<UNK>');
-  txns = [];
-  generated = 0;
-  masterTime = START_SECONDS;
-  microBurstWindowStart = START_SECONDS;
-  microBurstCount = 0;
-  $('tokens').innerHTML = '';
-  for (let i = 0; i < tokens.length; i++) {
-    const txn = tokenToTxn(tokens[i], i);
-    if (txn) {
-      txns.push(txn);
-      addTxnLog(txn);
-    }
-  }
-  render();
-}
-
-function txnLabel(txn) {
-  if (txn.kind === 'marker') return txn.token;
-  return `${txn.action} ${format(txn.sizeSol, 3)} SOL +${format(txn.delaySec, 2)}s`;
-}
-
-function addTxnLog(txn) {
-  const el = document.createElement('div');
-  const className = txn.kind === 'trade' ? txn.action.toLowerCase() : tokenClass(txn.token);
-  el.className = `token ${className}`;
-  el.innerHTML = txn.kind === 'trade'
-    ? `<strong>${txn.action}</strong> ${format(txn.sizeSol, 3)} SOL<br><span class="status">delay ${format(txn.delaySec, 2)}s / ${new Date(txn.scheduledAt * 1000).toISOString().slice(11, 19)}<br>${escapeHtml(txn.sourceToken)}</span>`
-    : `<strong>${escapeHtml(txn.token)}</strong><br><span class="status">${new Date(txn.scheduledAt * 1000).toISOString().replace('T', ' ').slice(0, 19)}</span>`;
-  $('tokens').prepend(el);
-  while ($('tokens').children.length > TOKEN_LOG_LIMIT) {
-    $('tokens').removeChild($('tokens').lastChild);
-  }
-}
-
-function buildCandles() {
-  const bucketSec = Number($('timeframe').value);
-  const start = START_SECONDS;
-  const candles = new Map();
-  const markers = [];
-  let price = 100;
-  let lastClose = 100;
-  let trades = 0;
-
-  const visible = txns.slice(-MAX_VISIBLE_TOKENS);
-  for (const txn of visible) {
-    if (txn.kind === 'marker') {
-      markers.push({ time: txn.scheduledAt, price, token: txn.token });
-      continue;
-    }
-
-    const side = txn.action === 'BUY' ? 1 : -1;
-    const before = price;
-    const size = txn.sizeSol;
-    const impact = Math.log1p(size) * walletMultiplier(txn.sourceToken) * (side > 0 ? 0.9 : -0.82);
-    price = Math.max(1, price * (1 + impact / 100));
-    const bucket = Math.floor((txn.scheduledAt - start) / bucketSec) * bucketSec + start;
-
-    if (!candles.has(bucket)) {
-      candles.set(bucket, {
-        time: bucket,
-        open: lastClose,
-        high: Math.max(lastClose, price),
-        low: Math.min(lastClose, price),
-        close: price,
-        buy: 0,
-        sell: 0,
-      });
-    }
-    const candle = candles.get(bucket);
-    candle.high = Math.max(candle.high, before, price);
-    candle.low = Math.min(candle.low, before, price);
-    candle.close = price;
-    if (side > 0) candle.buy += size;
-    else candle.sell += size;
-    lastClose = price;
-    trades++;
-  }
-
-  const list = [...candles.values()].sort((a, b) => a.time - b.time);
-  for (const marker of markers) {
-    marker.index = nearestCandle(list, marker.time);
-  }
-  return { candles: list, markers, trades, price };
-}
-
-function nearestCandle(candles, time) {
-  let best = -1;
-  let bestDistance = Infinity;
-  for (let i = 0; i < candles.length; i++) {
-    const distance = Math.abs(candles[i].time - time);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = i;
-    }
-  }
-  return best;
-}
-
-function resizeCanvas() {
-  const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.floor(rect.width * dpr);
-  canvas.height = Math.floor(rect.height * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return rect;
-}
-
-function draw(model) {
-  const rect = resizeCanvas();
-  const w = rect.width;
-  const h = rect.height;
-  ctx.clearRect(0, 0, w, h);
-
-  const candles = model.candles;
-  if (!candles.length) {
-    ctx.fillStyle = '#98a4ae';
-    ctx.font = '13px Segoe UI';
-    ctx.fillText('waiting for trade tokens', 24, 34);
-    return;
-  }
-
-  const pad = { l: 60, r: 18, t: 24, b: 36 };
-  const chartW = w - pad.l - pad.r;
-  const chartH = h - pad.t - pad.b;
-  const low = Math.min(...candles.map((c) => c.low));
-  const high = Math.max(...candles.map((c) => c.high));
-  const span = Math.max(high - low, 1);
-  const step = chartW / Math.max(candles.length, 1);
-  const bodyW = Math.max(3, Math.min(16, step * 0.64));
-  const x = (i) => pad.l + i * step + step / 2;
-  const y = (price) => pad.t + (high - price) / span * chartH;
-
-  ctx.font = '11px Segoe UI';
-  ctx.strokeStyle = '#293139';
-  ctx.fillStyle = '#98a4ae';
-  for (let i = 0; i <= 4; i++) {
-    const yy = pad.t + chartH * i / 4;
-    const price = high - span * i / 4;
-    ctx.beginPath();
-    ctx.moveTo(pad.l, yy);
-    ctx.lineTo(w - pad.r, yy);
-    ctx.stroke();
-    ctx.fillText(format(price), 9, yy + 4);
-  }
-
-  candles.forEach((candle, i) => {
-    const xx = x(i);
-    const openY = y(candle.open);
-    const closeY = y(candle.close);
-    const highY = y(candle.high);
-    const lowY = y(candle.low);
-    const up = candle.close >= candle.open;
-    ctx.strokeStyle = up ? '#26a69a' : '#ef5350';
-    ctx.fillStyle = up ? '#26a69a' : '#ef5350';
-    ctx.beginPath();
-    ctx.moveTo(xx, highY);
-    ctx.lineTo(xx, lowY);
-    ctx.stroke();
-    ctx.fillRect(xx - bodyW / 2, Math.min(openY, closeY), bodyW, Math.max(2, Math.abs(closeY - openY)));
-  });
-
-  for (const marker of model.markers) {
-    if (marker.index < 0) continue;
-    const xx = x(marker.index);
-    const color = marker.token === '[DEAD]' ? '#ef5350' : marker.token === '[REALIVE]' ? '#26a69a' : '#56ccf2';
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.setLineDash([4, 5]);
-    ctx.beginPath();
-    ctx.moveTo(xx, pad.t);
-    ctx.lineTo(xx, h - pad.b);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillRect(xx - 5, pad.t + 5, 10, 10);
-  }
-
-  ctx.fillStyle = '#98a4ae';
-  ctx.fillText(`candles ${candles.length}`, pad.l, h - 13);
-  ctx.fillText(`visible tokens ${Math.min(tokens.length, MAX_VISIBLE_TOKENS)}`, Math.max(pad.l, w - pad.r - 132), h - 13);
-}
-
-function render() {
-  const model = buildCandles();
-  lastModel = model;
-  draw(model);
-  $('sGenerated').textContent = generated.toLocaleString();
-  $('sTrades').textContent = model.trades.toLocaleString();
-  $('sCandles').textContent = model.candles.length.toLocaleString();
-  $('sPrice').textContent = format(model.price);
-  $('sLast').textContent = txns.length ? txnLabel(txns.at(-1)) : '-';
-  $('sModel').textContent = session ? activeExecutionProvider : '-';
-}
-
-async function createSessionGpuFirst() {
-  await ensureAssetOk(MODEL_PATH, 'ONNX model');
-  configureOnnxRuntime();
-
-  const attempts = [];
-  if (navigator.gpu) attempts.push('webgpu');
-  attempts.push('webgl');
-  attempts.push('wasm');
-
-  const errors = [];
-  for (const provider of attempts) {
-    try {
-      setStatus(`loading onnx model (${provider})`);
-      const loaded = await ort.InferenceSession.create(MODEL_PATH, {
-        executionProviders: [provider],
-      });
-      activeExecutionProvider = provider;
-      return loaded;
-    } catch (error) {
-      errors.push(`${provider}: ${error.message}`);
-      console.warn(`ONNX provider failed: ${provider}`, error);
-    }
-  }
-
-  throw new Error(`ONNXモデルをロードできませんでした。${errors.join(' / ')}`);
-}
-
-function configureOnnxRuntime() {
-  if (ort.env) {
-    ort.env.logLevel = 'error';
-  }
-
-  if (ort.env?.wasm) {
-    const canUseThreads = window.crossOriginIsolated === true;
-    ort.env.wasm.numThreads = canUseThreads
-      ? Math.max(1, Math.min(4, navigator.hardwareConcurrency || 1))
-      : 1;
-    ort.env.wasm.simd = true;
-  }
-}
-
-async function ensureAssetOk(url, label) {
-  const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
-  if (!res.ok) {
-    throw new Error(`${label} が見つかりません (${res.status}): ${url}`);
-  }
-}
-
-async function fetchJsonAsset(url, label) {
-  const res = await fetch(url, { cache: 'no-store' });
-  const text = await res.text();
-
-  if (!res.ok) {
-    throw new Error(`${label} が見つかりません (${res.status}): ${url}`);
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    const preview = text.slice(0, 40).replace(/\s+/g, ' ');
-    throw new Error(`${label} がJSONとして読めません。URLがHTMLを返しています: ${url} (${preview}...)`);
-  }
-}
-
-function sampleTopK(logits, topK, temperature) {
-  if (!logits || logits.length === 0) {
-    throw new Error('ONNX logits が空です。出力shapeを確認してください。');
-  }
-  const pairs = [];
-  for (let i = 0; i < logits.length; i++) {
-    const value = logits[i];
-    if (Number.isFinite(value)) pairs.push([i, value / temperature]);
-  }
-  if (pairs.length === 0) {
-    throw new Error('ONNX logits に有効な数値がありません。');
-  }
-  pairs.sort((a, b) => b[1] - a[1]);
-  const top = pairs.slice(0, Math.max(1, Math.min(topK, pairs.length)));
-  const max = top[0][1];
-  let total = 0;
-  const weighted = top.map(([id, logit]) => {
-    const weight = Math.exp(logit - max);
-    total += weight;
-    return [id, weight];
-  });
-  let roll = Math.random() * total;
-  for (const [id, weight] of weighted) {
-    roll -= weight;
-    if (roll <= 0) return id;
-  }
-  return weighted[0][0];
-}
-
-function getOutputTensor(result) {
-  if (result.logits) return result.logits;
-  const names = Object.keys(result);
-  if (!names.length) throw new Error('ONNXの出力がありません。');
-  return result[names[0]];
-}
-
-function getLastLogits(outputTensor) {
-  const data = outputTensor.data;
-  const dims = outputTensor.dims || [];
-  if (!data || data.length === 0) {
-    throw new Error(`ONNX出力が空です。dims=${JSON.stringify(dims)}`);
-  }
-
-  if (dims.length === 3) {
-    const seqLength = Number(dims[1]);
-    const outputVocabSize = Number(dims[2]);
-    const offset = Math.max(0, seqLength - 1) * outputVocabSize;
-    return data.slice(offset, offset + outputVocabSize);
-  }
-
-  if (dims.length === 2) {
-    const outputVocabSize = Number(dims[1]);
-    return data.slice(0, outputVocabSize);
-  }
-
-  const fallbackVocabSize = Math.min(vocab.length, data.length);
-  return data.slice(data.length - fallbackVocabSize);
-}
-
-async function generateOne() {
-  const context = ids.slice(-MODEL_CONTEXT);
-  const input = BigInt64Array.from(context.map(BigInt));
-  const mask = BigInt64Array.from(context.map(() => 1n));
-  const feeds = {
-    input_ids: new ort.Tensor('int64', input, [1, context.length]),
-    attention_mask: new ort.Tensor('int64', mask, [1, context.length]),
-  };
-  const result = await session.run(feeds);
-  const outputTensor = getOutputTensor(result);
-  const nextLogits = getLastLogits(outputTensor);
-  const temperature = Math.max(0.1, Number($('temperature').value) || 0.85);
-  const topK = Math.max(1, Number($('topk').value) || 50);
-  const nextId = sampleTopK(nextLogits, topK, temperature);
-  const nextToken = vocab[nextId] ?? '<UNK>';
-
-  ids.push(nextId);
-  tokens.push(nextToken);
-  generated++;
-  const txn = tokenToTxn(nextToken, tokens.length - 1);
-  if (txn) {
-    txns.push(txn);
-    addTxnLog(txn);
-  }
-
-  if (ids.length > MAX_VISIBLE_TOKENS + MODEL_CONTEXT) {
-    ids = ids.slice(-MAX_VISIBLE_TOKENS);
-    tokens = tokens.slice(-MAX_VISIBLE_TOKENS);
-  }
-  if (txns.length > MAX_VISIBLE_TOKENS + MODEL_CONTEXT) {
-    txns = txns.slice(-MAX_VISIBLE_TOKENS);
-  }
-}
-
-async function loop() {
-  if (!running) return;
-  try {
-    await generateOne();
-    render();
-    const delay = Math.max(0, Number($('delay').value) || 0);
-    loopTimer = setTimeout(loop, delay);
-  } catch (error) {
-    running = false;
-    $('toggle').textContent = 'Start';
-    $('toggle').classList.remove('active');
-    setStatus(`error: ${error.message}`);
-    console.error(error);
-  }
-}
-
-function setRunning(value) {
-  running = value;
-  $('toggle').textContent = running ? 'Pause' : 'Start';
-  $('toggle').classList.toggle('active', running);
-  if (loopTimer) clearTimeout(loopTimer);
-  if (running) loop();
-}
-
-async function load() {
-  try {
-    if (location.protocol === 'file:') {
-      throw new Error('file:// ではONNXを読み込めません。http://localhost:8000/index.html で開いてください。');
-    }
-    setStatus('loading vocab');
-    vocab = await fetchJsonAsset(VOCAB_PATH, 'vocab');
-    stoi = new Map(vocab.map((token, index) => [token, index]));
-
-    session = await createSessionGpuFirst();
-
-    resetState();
-    $('toggle').disabled = false;
-    $('reset').disabled = false;
-    setStatus('running');
-    setRunning(true);
-  } catch (error) {
-    setStatus(error.message);
-    console.error(error);
-  }
-}
-
-$('toggle').addEventListener('click', () => setRunning(!running));
-$('reset').addEventListener('click', () => {
-  resetState();
-  setRunning(true);
-});
-$('timeframe').addEventListener('change', render);
-window.addEventListener('resize', () => lastModel && draw(lastModel));
-
-load();
-</script>
-</body>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
 </html>

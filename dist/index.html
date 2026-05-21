@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meme Coin DEX Simulator</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script type="module" crossorigin src="/assets/index-DOaR8uJB.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-D1XhdEeZ.css">
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="logo">MEME DEX</div>
+        <div class="stats-bar">
+          <div class="stat"><span class="label">MASTER TIME</span><span id="master-time-display" class="value">00:00:00</span></div>
+          <div class="stat speed-stat">
+            <span class="label">SPEED</span>
+            <select id="speed-select" class="speed-select">
+              <option value="1">1x</option>
+              <option value="2">2x</option>
+              <option value="5">5x</option>
+              <option value="10">10x</option>
+              <option value="60">60x</option>
+            </select>
+          </div>
+          <div class="stat"><span class="label">TPS</span><span id="tps-display" class="value">0.00</span></div>
+          <div class="stat"><span class="label">ACTIVE INAGOS</span><span id="inago-display" class="value">0</span></div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <!-- Left Sidebar: Coin List -->
+        <aside class="sidebar left-sidebar box">
+          <header class="sidebar-header">
+            <h2>MARKETS</h2>
+          </header>
+          <div id="coin-list" class="coin-list">
+            <!-- Coin list items will be generated here -->
+          </div>
+        </aside>
+
+        <!-- Center Column: Chart & Transactions -->
+        <section class="center-column">
+          <!-- Top: Chart -->
+          <div class="main-chart-area box">
+            <header class="chart-header">
+              <h1 id="selected-coin-name">---</h1>
+              <div class="coin-price-info">
+                <span id="selected-coin-price" class="price">$0.00</span>
+                <span id="selected-coin-change" class="change">0.00%</span>
+              </div>
+            </header>
+            <div id="chart-container"></div>
+          </div>
+          
+          <!-- Bottom: Transactions -->
+          <div class="txn-area box">
+            <header class="txn-header">
+              <div class="txn-tabs">
+                <button id="txn-tab-all" class="txn-tab active">All</button>
+                <button id="txn-tab-you" class="txn-tab">You</button>
+                <button id="txn-tab-dev" class="txn-tab">Dev</button>
+              </div>
+            </header>
+            <div class="txn-table-container">
+              <table class="txn-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>USD</th>
+                    <th id="txn-header-token">Token</th>
+                    <th>SOL</th>
+                    <th>Price</th>
+                  </tr>
+                </thead>
+                <tbody id="txn-list">
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right Sidebar: Trading Panel -->
+        <aside class="sidebar right-sidebar box">
+          <header class="sidebar-header">
+            <div class="trade-tabs">
+              <button class="trade-tab active">Market</button>
+              <button class="trade-tab">Limit</button>
+            </div>
+          </header>
+          <div class="trade-panel">
+            <div class="trade-action-toggle">
+              <button id="btn-buy" class="btn-buy active">Buy</button>
+              <button id="btn-sell" class="btn-sell">Sell</button>
+            </div>
+            
+            <div class="input-group">
+              <label>Pay</label>
+              <div class="input-box">
+                <input id="trade-pay-input" type="number" placeholder="0.00" value="1.0">
+                <span class="currency">SOL</span>
+              </div>
+            </div>
+            
+            <div class="input-group">
+              <label>Receive</label>
+              <div class="input-box">
+                <input id="trade-receive-input" type="text" placeholder="0" readonly>
+                <span class="currency" id="trade-receive-currency">---</span>
+              </div>
+            </div>
+            
+            <button id="btn-trade" class="btn-submit">Trade</button>
+          </div>
+          
+          <div class="token-info">
+            <h3>Token Info</h3>
+            <div class="info-grid">
+              <div class="info-item"><span class="label">Liquidity</span><span class="value" id="token-liquidity">$0.00</span></div>
+              <div class="info-item"><span class="label">MCap</span><span class="value" id="token-mcap">$0.00</span></div>
+            </div>
+          </div>
+        </aside>
+      </main>
+      
+      <!-- Effect Overlay for Whale / Microburst -->
+      <div id="effect-overlay" class="effect-overlay"></div>
+
+      <!-- Initial Loading Screen -->
+      <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+          <div class="logo">MEME DEX</div>
+          <div class="loading-title">INITIALIZING WORLD STATE</div>
+          <div class="progress-container">
+            <div id="progress-bar-fill" class="progress-bar-fill"></div>
+          </div>
+          <div id="loading-status" class="loading-status">Loading AI Model...</div>
+          <div id="loading-sub-status" class="loading-sub-status"></div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
