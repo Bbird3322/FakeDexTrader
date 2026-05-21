@@ -19,25 +19,33 @@ export class AIEngine {
 
   async init() {
     try {
-      const res = await fetch('/master_vocab.json');
+      // 1. Load Vocab
+      const baseUrl = import.meta.env.BASE_URL || '/';
+      const vocabUrl = baseUrl + 'master_vocab.json';
+      const res = await fetch(vocabUrl);
       if (!res.ok) throw new Error('master_vocab.json not found');
       this.vocab = await res.json();
       this.vocab.forEach((token, index) => this.stoi.set(token, index));
 
       console.log('%c[AIEngine] Initializing ONNX Runtime...', 'color: #00aaff;');
       this.configureOnnxRuntime();
+      
+      // 2. Load ONNX Model
+      const options = {
+        executionProviders: ['wasm'],
+        logSeverityLevel: 3,
+      };
+      
       if (navigator.gpu) {
+        options.executionProviders = ['webgpu', 'wasm'];
         console.log('%c[AIEngine] 🎮 WebGPU (GPU Acceleration) is SUPPORTED by your browser.', 'color: #00ff66; font-weight: bold;');
       } else {
         console.log('%c[AIEngine] ⚠️ WebGPU is NOT supported. Using WASM (CPU) fallback.', 'color: #ffaa00; font-weight: bold;');
       }
 
       const loadStart = performance.now();
-      // WebGPU優先、WASMフォールバック
-      this.session = await ort.InferenceSession.create('/meme_ai_kv_quantized_int8.onnx', {
-        executionProviders: ['webgpu', 'wasm'],
-        logSeverityLevel: 3, // エラーのみ表示（Warningを非表示にしてコンソールを綺麗に保つ）
-      });
+      const modelUrl = baseUrl + 'meme_ai_kv_quantized_int8.onnx';
+      this.session = await ort.InferenceSession.create(modelUrl, options);
       const loadTime = (performance.now() - loadStart).toFixed(1);
 
       this.isReady = true;
